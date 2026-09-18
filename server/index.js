@@ -9,6 +9,7 @@ const path = require('node:path');
 const { seedBooks, DB_PATH } = require('./db');
 const { sessionMiddleware } = require('./auth');
 const authRoutes = require('./routes-auth');
+const taskRoutes = require('./routes-tasks');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use(sessionMiddleware);
 
 app.use('/api', authRoutes);
+app.use('/api', taskRoutes);
 
 // 静态前端（public/）；index:false 让根路径落到下面的分流路由，否则登录页会盖掉分流逻辑
 app.use(express.static(path.join(__dirname, '..', 'public'), { index: false }));
