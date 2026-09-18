@@ -6,7 +6,7 @@ const express = require('express');
 const { createServer } = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
-const { seedBooks, DB_PATH } = require('./db');
+const { seedBooks, migrate, DB_PATH } = require('./db');
 const { sessionMiddleware } = require('./auth');
 const authRoutes = require('./routes-auth');
 const taskRoutes = require('./routes-tasks');
@@ -15,6 +15,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 
 seedBooks();
+migrate();
 
 const app = express();
 app.use(express.json());
