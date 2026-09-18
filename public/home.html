@@ -6,28 +6,96 @@
   <title>千词斩 · 首页</title>
   <link rel="stylesheet" href="/style.css">
   <style>
-    .wrap { max-width: 480px; margin: 10vh auto 0; padding: 0 16px; text-align: center; }
+    body { padding-bottom: 76px; } /* 给底部导航留空间 */
+    .wrap { max-width: 480px; margin: 0 auto; padding: 18px 16px; }
+    .topline { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+    .topline h1 { margin: 0; font-size: 22px; }
+    .topline a { font-size: 14px; color: var(--muted); text-decoration: none; }
+    .hero {
+      background: linear-gradient(135deg, var(--green) 0%, #3fbf74 100%);
+      color: #fff; border-radius: 16px; padding: 22px; text-align: center; margin-bottom: 14px;
+    }
+    .hero .book { font-size: 15px; opacity: .92; }
+    .hero .task { font-size: 30px; font-weight: 700; margin: 8px 0 14px; }
+    .hero .start-btn {
+      display: inline-block; background: #fff; color: var(--green-dark);
+      font-size: 19px; font-weight: 700; padding: 13px 46px; border-radius: 28px;
+      border: 0; cursor: pointer; text-decoration: none;
+    }
+    .nums { display: flex; gap: 12px; margin-bottom: 14px; }
+    .nums .card { flex: 1; text-align: center; padding: 14px 6px; }
+    .nums b { font-size: 24px; display: block; color: var(--green-dark); }
+    .nums span { font-size: 12.5px; color: var(--muted); }
+    .item-row { display: flex; justify-content: space-between; padding: 13px 4px; border-bottom: 1px solid var(--border); font-size: 15px; }
+    .item-row:last-child { border-bottom: 0; }
+    .item-row b { color: var(--green-dark); }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; display: flex;
+      background: #fff; border-top: 1px solid var(--border); padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+    }
+    .bottom-nav a { flex: 1; text-align: center; text-decoration: none; color: var(--muted); font-size: 12px; }
+    .bottom-nav a .icon { display: block; font-size: 21px; margin-bottom: 2px; }
+    .bottom-nav a.active { color: var(--green-dark); font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1 style="color:var(--green-dark)">千词斩</h1>
-      <p id="hello" style="color:var(--muted)">登录成功 · 占位首页</p>
-      <p style="font-size:14px;color:var(--muted)">首页完整版将在步骤 5 上线</p>
-      <a class="btn" href="/study.html" style="text-decoration:none">开始学习（临时入口）</a>
-      <button class="btn plain" id="logoutBtn" style="margin-top:10px">退出登录</button>
+    <div class="topline">
+      <h1>千词斩</h1>
+      <a href="/books.html">换词书 ›</a>
+    </div>
+
+    <div class="hero">
+      <div class="book" id="bookName">—</div>
+      <div class="task" id="taskLine">加载中…</div>
+      <a class="start-btn" id="startBtn" href="/study.html">开始学习</a>
+    </div>
+
+    <div class="nums">
+      <div class="card"><b id="statNew">-</b><span>今日新词</span></div>
+      <div class="card"><b id="statReview">-</b><span>今日复习</span></div>
+      <div class="card"><b id="statDone">-</b><span>累计斩词</span></div>
+      <div class="card"><b id="statStreak">-</b><span>连续天数</span></div>
+    </div>
+
+    <div class="card" id="doneCard" style="display:none; text-align:center; color: var(--green-dark); font-weight: 600;">
+      今日任务已完成 🎉
+    </div>
+    <div class="card" id="againCard" style="display:none;">
+      <button class="btn plain" id="againBtn">再来一轮复习（可选）</button>
     </div>
   </div>
+  <script src="/nav.js"></script>
   <script>
-    fetch('/api/me').then(r => r.json()).then(({ user }) => {
-      if (!user) { location.href = '/index.html'; return; }
-      document.getElementById('hello').textContent = `登录成功：${user.username} · 占位首页`;
-    });
-    document.getElementById('logoutBtn').onclick = async () => {
-      await fetch('/api/logout', { method: 'POST' });
-      location.href = '/index.html';
-    };
+    renderNav('home');
+
+    (async () => {
+      const r = await fetch('/api/stats/home');
+      if (r.status === 401) { location.href = '/index.html'; return; }
+      const s = await r.json();
+      document.getElementById('bookName').textContent = s.book.title;
+      document.getElementById('statNew').textContent = s.todayNew;
+      document.getElementById('statReview').textContent = s.todayReview;
+      document.getElementById('statDone').textContent = s.doneTotal;
+      document.getElementById('statStreak').textContent = s.streak;
+
+      const total = s.todayNew + s.todayReview;
+      const taskLine = document.getElementById('taskLine');
+      const doneCard = document.getElementById('doneCard');
+      const againCard = document.getElementById('againCard');
+      const startBtn = document.getElementById('startBtn');
+      if (total > 0) {
+        taskLine.textContent = `今日待学 ${s.todayNew} 词 · 待复习 ${s.todayReview} 词`;
+      } else {
+        taskLine.textContent = '今日任务已完成 🎉';
+        doneCard.style.display = 'block';
+        againCard.style.display = 'block';
+        startBtn.style.display = 'none'; // 已清空时主按钮让位给「再来一轮」
+      }
+      // 「再来一轮复习」：任务清空后的可选加练。当前版本引导回学习页空转会被总结页打断，
+      // v1 先隐藏复杂度：直接复用学习页（今日无任务时学习页会立刻给总结页）。
+      document.getElementById('againBtn').onclick = () => { location.href = '/study.html'; };
+    })();
   </script>
 </body>
 </html>
