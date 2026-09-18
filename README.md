@@ -97,6 +97,7 @@ Zdemo1/
 
 ## 常见问题
 
-- **忘记密码**：联系开发者直接清库重建（v1 不做找回功能）。
+- **忘记密码**：密码为明文存储，直接查看数据库即可（`sqlite3 server/data.db "SELECT username, password_hash FROM users"`，password_hash 字段即明文密码）；或联系开发者清库重建。
 - **数据备份**：备份 `server/data.db` 单文件即可。
 - **词书扩充**：`scripts/prepare-dicts.mjs` 可重跑用于扩充其他词书（v1 无界面功能）。
+- **安全提示**：密码为明文存储（用户明确选择），请勿将 `server/data.db` 交予他人，也不要把重要密码复用在本应用上。
