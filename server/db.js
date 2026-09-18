@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   daily_new_limit  INTEGER NOT NULL DEFAULT 20 CHECK (daily_new_limit BETWEEN 1 AND 100),
   accent           TEXT NOT NULL DEFAULT 'us' CHECK (accent IN ('us', 'uk')),
   current_book_key TEXT NOT NULL DEFAULT 'gaokao',
+  word_order_mode  TEXT NOT NULL DEFAULT 'default' CHECK (word_order_mode IN ('default', 'frequency', 'random')),
   created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -38,7 +39,8 @@ CREATE TABLE IF NOT EXISTS words (
   ukphone        TEXT NOT NULL DEFAULT '',
   trans_json     TEXT NOT NULL,            -- [{pos, cn}]
   sentences_json TEXT NOT NULL DEFAULT '[]', -- [{en, cn}]
-  rank           INTEGER NOT NULL          -- 书内序号，取词时稳定排序
+  rank           INTEGER NOT NULL,          -- 书内序号，取词时稳定排序
+  freq_rank      INTEGER                    -- COCA 词频序号（1=最高频；NULL=词表外，排最后）
 );
 CREATE INDEX IF NOT EXISTS idx_words_book ON words(book_id, rank);
 CREATE INDEX IF NOT EXISTS idx_words_book_word ON words(book_id, word);
@@ -82,9 +84,17 @@ function migrate() {
   if (!cols.includes('current_book_key')) {
     db.exec("ALTER TABLE users ADD COLUMN current_book_key TEXT NOT NULL DEFAULT 'gaokao'");
   }
+  if (!cols.includes('word_order_mode')) {
+    db.exec("ALTER TABLE users ADD COLUMN word_order_mode TEXT NOT NULL DEFAULT 'default'");
+  }
+  const wcols = db.prepare('PRAGMA table_info(words)').all().map(c => c.name);
+  if (!wcols.includes('freq_rank')) {
+    db.exec('ALTER TABLE words ADD COLUMN freq_rank INTEGER');
+  }
 }
 
-// 词书入库：data/dicts/*.json → books + words；书已存在（按 key）则整体跳过
+// 词书入库：data/dicts/*.json → books + words；书已存在（按 key）则跳过插入，
+// 但仍回填 freq_rank（词书 JSON 新增了该字段而库是旧结构时的升级路径）
 function seedBooks() {
   const DICT_DIR = join(ROOT, 'data/dicts');
   const DICTS = [
@@ -95,6 +105,7 @@ function seedBooks() {
   for (const { key, file } of DICTS) {
     const existing = db.prepare('SELECT id, title, total FROM books WHERE key = ?').get(key);
     if (existing) {
+      backfillFreqRank(Number(existing.id), join(DICT_DIR, file));
       console.log(`[词书] ${key}（${existing.title}）已入库，跳过（${existing.total} 词）`);
       continue;
     }
@@ -106,14 +117,14 @@ function seedBooks() {
     const data = JSON.parse(readFileSync(path, 'utf8'));
     const insertBook = db.prepare('INSERT INTO books (key, title, total) VALUES (?, ?, ?)');
     const insertWord = db.prepare(
-      'INSERT INTO words (book_id, word, usphone, ukphone, trans_json, sentences_json, rank) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO words (book_id, word, usphone, ukphone, trans_json, sentences_json, rank, freq_rank) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     db.exec('BEGIN');
     try {
       const bookInfo = insertBook.run(key, data.title, data.words.length);
       const bookId = Number(bookInfo.lastInsertRowid);
       data.words.forEach((w, i) => {
-        insertWord.run(bookId, w.word, w.usphone, w.ukphone, JSON.stringify(w.trans), JSON.stringify(w.sentences), i + 1);
+        insertWord.run(bookId, w.word, w.usphone, w.ukphone, JSON.stringify(w.trans), JSON.stringify(w.sentences), i + 1, w.freq_rank ?? null);
       });
       db.exec('COMMIT');
       console.log(`[词书] ${key}（${data.title}）入库完成：${data.words.length} 词`);
@@ -121,6 +132,31 @@ function seedBooks() {
       db.exec('ROLLBACK');
       throw err;
     }
+  }
+}
+
+// 回填 freq_rank：只更新当前为 NULL 的词（按 词+书 定位），已有进度不受影响
+function backfillFreqRank(bookId, dictPath) {
+  if (!existsSync(dictPath)) return;
+  const pending = db.prepare(
+    'SELECT id, word FROM words WHERE book_id = ? AND freq_rank IS NULL'
+  ).all(bookId);
+  if (pending.length === 0) return;
+  const data = JSON.parse(readFileSync(dictPath, 'utf8'));
+  const rankByWord = new Map(data.words.map(w => [w.word, w.freq_rank ?? null]));
+  const update = db.prepare('UPDATE words SET freq_rank = ? WHERE id = ?');
+  db.exec('BEGIN');
+  try {
+    let filled = 0;
+    for (const row of pending) {
+      const fr = rankByWord.get(row.word);
+      if (fr !== undefined) { update.run(fr, Number(row.id)); filled++; }
+    }
+    db.exec('COMMIT');
+    if (filled > 0) console.log(`[词书] 回填 freq_rank：${filled}/${pending.length} 词`);
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
   }
 }
 

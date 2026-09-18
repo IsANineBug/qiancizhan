@@ -14,8 +14,9 @@ const taskRoutes = require('./routes-tasks');
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 
-seedBooks();
+// 先迁移旧库结构，再灌词书（seedBooks 依赖迁移后新增的 freq_rank 列）
 migrate();
+seedBooks();
 
 const app = express();
 app.use(express.json());

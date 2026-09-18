@@ -41,6 +41,14 @@
         </div>
       </div>
       <div class="row">
+        <div class="label">学习顺序<span class="sub">只影响未学新词的出场顺序，复习节奏不变</span></div>
+        <div class="seg" id="orderSeg">
+          <button data-mode="default" type="button">默认顺序</button>
+          <button data-mode="frequency" type="button">按考查频率</button>
+          <button data-mode="random" type="button">完全随机</button>
+        </div>
+      </div>
+      <div class="row">
         <div class="label">当前账号</div>
         <b id="username" style="font-size:15px">—</b>
       </div>
@@ -54,6 +62,7 @@
   <script>
     const $ = id => document.getElementById(id);
     let accent = 'us';
+    let orderMode = 'default';
 
     (async () => {
       const r = await fetch('/api/settings');
@@ -62,7 +71,9 @@
       $('username').textContent = s.username;
       $('dailyLimit').value = s.dailyNewLimit;
       accent = s.accent;
+      orderMode = s.wordOrderMode || 'default';
       paintAccent();
+      paintOrder();
     })();
 
     function paintAccent() {
@@ -72,11 +83,20 @@
     $('accentUs').onclick = () => { accent = 'us'; paintAccent(); };
     $('accentUk').onclick = () => { accent = 'uk'; paintAccent(); };
 
+    function paintOrder() {
+      document.querySelectorAll('#orderSeg button').forEach(b => {
+        b.classList.toggle('on', b.dataset.mode === orderMode);
+      });
+    }
+    document.querySelectorAll('#orderSeg button').forEach(b => {
+      b.onclick = () => { orderMode = b.dataset.mode; paintOrder(); };
+    });
+
     $('saveBtn').onclick = async () => {
       const msg = $('msg'); msg.className = 'msg'; msg.textContent = '';
       const r = await fetch('/api/settings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dailyNewLimit: Number($('dailyLimit').value), accent }),
+        body: JSON.stringify({ dailyNewLimit: Number($('dailyLimit').value), accent, wordOrderMode: orderMode }),
       });
       const data = await r.json();
       if (!r.ok) { msg.className = 'msg error'; msg.textContent = data.error; return; }

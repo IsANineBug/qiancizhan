@@ -16,6 +16,23 @@ const EXTRACT_DIR = join(RAW_DIR, 'extracted');
 const OUT_DIR = join(ROOT, 'data/dicts');
 const BOOK_REPO = 'https://raw.githubusercontent.com/kajweb/dict/master/book';
 
+// COCA 语料库词频表（2026-09-18 新增「按考查频率」模式的数据源）：
+// 每行一个词，按真实语料使用频率从高到低排序。词 → 序号（1 起），查不到的词 freq_rank 为 null（排最后）。
+function loadCocaFreq() {
+  const path = join(RAW_DIR, 'coca-freq.txt');
+  if (!existsSync(path)) {
+    console.warn(`[词频] 缺少 ${path}，freq_rank 将为空（可在 https://github.com/mahavivo/english-wordlists 的 COCA_20000.txt 获取）`);
+    return new Map();
+  }
+  const map = new Map();
+  readFileSync(path, 'utf8').split('\n').forEach((line, i) => {
+    const w = line.trim().toLowerCase();
+    if (w && !map.has(w)) map.set(w, i + 1);
+  });
+  console.log(`[词频] COCA 词表载入 ${map.size} 词`);
+  return map;
+}
+
 // 词书清单：key 为应用内书标识，zip 为 kajweb/dict 仓库 book/ 目录下的文件名
 const BOOKS = [
   { key: 'gaokao', id: 'GaoZhong_2', title: '高考英语词汇', zip: '1521164675301_GaoZhong_2.zip' },
@@ -40,7 +57,8 @@ function ensureExtractedJson(book, zipPath) {
 }
 
 // 单行记录清洗：解析 JSONL 一行 → 统一字段；失败返回 { error } 并说明原因
-function cleanRecord(line) {
+// cocaFreq：COCA 词频 Map，为每词标注 freq_rank（1=最高频；查不到为 null）
+function cleanRecord(line, cocaFreq) {
   if (!line.trim()) return { error: '空行' };
   let rec;
   try {
@@ -71,10 +89,11 @@ function cleanRecord(line) {
     ukphone: String(wc.ukphone ?? '').trim(),
     trans,
     sentences,
+    freq_rank: cocaFreq.get(word.toLowerCase()) ?? null,
   };
 }
 
-function processBook(book) {
+function processBook(book, cocaFreq) {
   const zipPath = ensureZip(book);
   const jsonPath = ensureExtractedJson(book, zipPath);
 
@@ -87,7 +106,7 @@ function processBook(book) {
   for (const line of lines) {
     if (!line.trim()) continue;
     stats.raw++;
-    const cleaned = cleanRecord(line);
+    const cleaned = cleanRecord(line, cocaFreq);
     if (cleaned.error) {
       stats.bad++;
       badReasons[cleaned.error] = (badReasons[cleaned.error] ?? 0) + 1;
@@ -118,9 +137,10 @@ function processBook(book) {
 mkdirSync(RAW_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
+const cocaFreq = loadCocaFreq();
 const totals = {};
 for (const book of BOOKS) {
-  totals[book.key] = processBook(book);
+  totals[book.key] = processBook(book, cocaFreq);
 }
 
 console.log('\n=== 汇总 ===');

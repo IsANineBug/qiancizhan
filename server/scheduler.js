@@ -55,16 +55,64 @@ function getTodayTasks(userId) {
   ).get(Number(userId), bookId, today).c;
   const newQuota = Math.max(0, dailyLimit - learnedToday);
 
-  const newRows = newQuota > 0 ? db.prepare(
+  const newRows = newQuota > 0 ? pickNewWords(userId, bookId, newQuota) : [];
+
+  return { today, bookId, review: reviewRows, newWords: newRows };
+}
+
+// ---- 新词选取：按用户的学习顺序模式（word_order_mode）----
+// default   → 词书内置 rank（正序版词书，由易到难）
+// frequency → COCA 词频序号（高频先学；词表外的词排最后，其间保持书内序）
+// random    → 按「日期|用户|词书」种子洗牌，同日稳定、隔日变化
+function pickNewWords(userId, bookId, quota) {
+  const modeRow = db.prepare('SELECT word_order_mode FROM users WHERE id = ?').get(Number(userId));
+  const mode = modeRow?.word_order_mode ?? 'default';
+
+  if (mode === 'default' || mode === 'frequency') {
+    const orderBy = mode === 'frequency'
+      ? 'ORDER BY w.freq_rank IS NULL, w.freq_rank, w.rank'
+      : 'ORDER BY w.rank';
+    return db.prepare(
+      `SELECT w.id AS word_id, w.word, w.usphone, w.ukphone, w.trans_json
+       FROM words w
+       WHERE w.book_id = ?
+         AND NOT EXISTS (SELECT 1 FROM progress p WHERE p.user_id = ? AND p.word_id = w.id)
+       ${orderBy}
+       LIMIT ?`
+    ).all(bookId, Number(userId), quota);
+  }
+
+  // random：种子洗牌（mulberry32，种子取自日期+用户+词书，同日同书稳定）
+  const candidates = db.prepare(
     `SELECT w.id AS word_id, w.word, w.usphone, w.ukphone, w.trans_json
      FROM words w
      WHERE w.book_id = ?
        AND NOT EXISTS (SELECT 1 FROM progress p WHERE p.user_id = ? AND p.word_id = w.id)
-     ORDER BY w.rank
-     LIMIT ?`
-  ).all(bookId, Number(userId), newQuota) : [];
+     ORDER BY w.rank`
+  ).all(bookId, Number(userId));
+  let seed = 0;
+  const key = `${todayStr()}|${userId}|${bookId}`;
+  for (let i = 0; i < key.length; i++) {
+    seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  shuffleInPlace(candidates, mulberry32(seed));
+  return candidates.slice(0, quota);
+}
 
-  return { today, bookId, review: reviewRows, newWords: newRows };
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleInPlace(arr, rand) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
 }
 
 // ---- 提交结果 ----
@@ -217,11 +265,11 @@ function getStatsPage(userId) {
 
 // ---- 设置（F9） ----
 function getSettings(userId) {
-  const u = db.prepare('SELECT username, daily_new_limit, accent FROM users WHERE id = ?').get(Number(userId));
-  return { username: u.username, dailyNewLimit: Number(u.daily_new_limit), accent: u.accent };
+  const u = db.prepare('SELECT username, daily_new_limit, accent, word_order_mode FROM users WHERE id = ?').get(Number(userId));
+  return { username: u.username, dailyNewLimit: Number(u.daily_new_limit), accent: u.accent, wordOrderMode: u.word_order_mode };
 }
 
-function updateSettings(userId, { dailyNewLimit, accent }) {
+function updateSettings(userId, { dailyNewLimit, accent, wordOrderMode }) {
   if (dailyNewLimit !== undefined) {
     const n = Number(dailyNewLimit);
     if (!Number.isInteger(n) || n < 1 || n > 100) throw new Error('每日新词数需为 1–100 的整数');
@@ -230,6 +278,12 @@ function updateSettings(userId, { dailyNewLimit, accent }) {
   if (accent !== undefined) {
     if (accent !== 'us' && accent !== 'uk') throw new Error('口音只支持 us / uk');
     db.prepare('UPDATE users SET accent = ? WHERE id = ?').run(accent, Number(userId));
+  }
+  if (wordOrderMode !== undefined) {
+    if (!['default', 'frequency', 'random'].includes(wordOrderMode)) {
+      throw new Error('学习顺序只支持 default / frequency / random');
+    }
+    db.prepare('UPDATE users SET word_order_mode = ? WHERE id = ?').run(wordOrderMode, Number(userId));
   }
   return getSettings(userId);
 }
