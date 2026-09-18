@@ -21,8 +21,8 @@ app.use(sessionMiddleware);
 
 app.use('/api', authRoutes);
 
-// 静态前端（public/）；根路径按登录态分流：未登录 → 登录页，已登录 → 占位首页
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// 静态前端（public/）；index:false 让根路径落到下面的分流路由，否则登录页会盖掉分流逻辑
+app.use(express.static(path.join(__dirname, '..', 'public'), { index: false }));
 app.get('/', (req, res) => {
   res.redirect(req.userId ? '/home.html' : '/index.html');
 });
