@@ -23,12 +23,12 @@ function addDaysStr(dateStr, days) {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
-// 用户当前词书：progress 里最近学过的书；没有则默认 gaokao
+// 用户当前词书：users.current_book_key（词书页可切换；默认 gaokao）
 function currentBookId(userId) {
   const row = db.prepare(
-    `SELECT book_id FROM progress WHERE user_id = ? ORDER BY last_seen DESC LIMIT 1`
+    `SELECT b.id FROM users u JOIN books b ON b.key = u.current_book_key WHERE u.id = ?`
   ).get(Number(userId));
-  if (row) return Number(row.book_id);
+  if (row) return Number(row.id);
   const book = db.prepare(`SELECT id FROM books WHERE key = 'gaokao'`).get();
   return Number(book.id);
 }
@@ -163,4 +163,32 @@ function getHomeStats(userId) {
   };
 }
 
-module.exports = { getTodayTasks, submitResult, getHomeStats, todayStr, addDaysStr, STAGE_INTERVALS, currentBookId };
+// ---- 词书页（F3）：三本书各自的进度计数 ----
+function getBookProgress(userId) {
+  const cur = db.prepare('SELECT current_book_key FROM users WHERE id = ?').get(Number(userId));
+  const currentKey = cur?.current_book_key ?? 'gaokao';
+  return db.prepare('SELECT id, key, title, total FROM books ORDER BY id').all().map(b => {
+    const done = db.prepare(
+      `SELECT COUNT(*) c FROM progress WHERE user_id = ? AND book_id = ? AND status = 'done'`
+    ).get(Number(userId), Number(b.id)).c;
+    const learning = db.prepare(
+      `SELECT COUNT(*) c FROM progress WHERE user_id = ? AND book_id = ? AND status = 'learning'`
+    ).get(Number(userId), Number(b.id)).c;
+    return {
+      key: b.key, title: b.title, total: Number(b.total),
+      done, learning, untouched: Number(b.total) - done - learning,
+      isCurrent: b.key === currentKey,
+      finished: done >= Number(b.total) && Number(b.total) > 0,
+    };
+  });
+}
+
+// 切换当前词书（key 必须是内置三本之一）
+function setCurrentBook(userId, key) {
+  const book = db.prepare('SELECT id FROM books WHERE key = ?').get(String(key));
+  if (!book) throw new Error('词书不存在');
+  db.prepare('UPDATE users SET current_book_key = ? WHERE id = ?').run(String(key), Number(userId));
+  return { ok: true, currentBookKey: String(key) };
+}
+
+module.exports = { getTodayTasks, submitResult, getHomeStats, getBookProgress, setCurrentBook, todayStr, addDaysStr, STAGE_INTERVALS, currentBookId };

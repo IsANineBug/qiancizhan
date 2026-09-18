@@ -53,4 +53,22 @@ router.get('/stats/home', (req, res) => {
   }
 });
 
+// 词书页：三本书进度
+router.get('/books', (req, res) => {
+  try {
+    res.json({ books: scheduler.getBookProgress(req.userId) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 切换当前词书：POST { key: 'gaokao'|'cet4'|'cet6' }
+router.post('/books/current', (req, res) => {
+  try {
+    res.json(scheduler.setCurrentBook(req.userId, req.body?.key));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 module.exports = router;

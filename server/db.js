@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   salt             TEXT NOT NULL,
   daily_new_limit  INTEGER NOT NULL DEFAULT 20 CHECK (daily_new_limit BETWEEN 1 AND 100),
   accent           TEXT NOT NULL DEFAULT 'us' CHECK (accent IN ('us', 'uk')),
+  current_book_key TEXT NOT NULL DEFAULT 'gaokao',
   created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -75,6 +76,14 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 );
 `);
 
+// 轻量迁移：已存在的库补新列（CREATE TABLE IF NOT EXISTS 对旧库不生效）
+function migrate() {
+  const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+  if (!cols.includes('current_book_key')) {
+    db.exec("ALTER TABLE users ADD COLUMN current_book_key TEXT NOT NULL DEFAULT 'gaokao'");
+  }
+}
+
 // 词书入库：data/dicts/*.json → books + words；书已存在（按 key）则整体跳过
 function seedBooks() {
   const DICT_DIR = join(ROOT, 'data/dicts');
@@ -115,4 +124,4 @@ function seedBooks() {
   }
 }
 
-module.exports = { db, seedBooks, DB_PATH };
+module.exports = { db, seedBooks, migrate, DB_PATH };
