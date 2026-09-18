@@ -73,8 +73,8 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', (req, res) => {
   if (!req.userId) return res.json({ user: null });
-  const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(Number(req.userId));
-  res.json({ user: user ? { id: Number(user.id), username: user.username } : null });
+  const user = db.prepare('SELECT id, username, accent FROM users WHERE id = ?').get(Number(req.userId));
+  res.json({ user: user ? { id: Number(user.id), username: user.username, accent: user.accent } : null });
 });
 
 module.exports = router;

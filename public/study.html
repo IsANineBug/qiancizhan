@@ -106,7 +106,7 @@
     </section>
   </div>
   <div id="toast"></div>
-
+  <script src="/speech.js"></script>
   <script>
     const $ = id => document.getElementById(id);
     const SECS = { review: $('reviewSec'), new: $('newSec'), check: $('checkSec'), done: $('doneSec') };
@@ -115,6 +115,11 @@
 
     let session = null;   // { reviewQueue, newQueue, checkQueue, stats }
     let cur = null;       // 当前词对象
+    let accent = 'us';    // 发音口音（设置页步骤 8 提供切换）
+
+    // 🔊 按钮：当前词的发音（翻卡/复习/检验三个按钮统一接线）
+    window.getUserAccent().then(a => { accent = a; });
+    window.bindSpeakerButtons(() => cur?.word, () => accent);
 
     // ---- 启动：拉今日任务，组会话队列 ----
     (async () => {
