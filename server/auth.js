@@ -49,15 +49,29 @@ function sessionMiddleware(req, res, next) {
   next();
 }
 
-// ---- 密码哈希 ----
-function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 32).toString('hex');
+// ---- 密码存储（2026-09-18 起为明文，用户明确要求；SPEC/AGENTS 已同步） ----
+// password_hash 字段直接存明文密码。salt 字段保留但不再使用（兼容旧表结构）。
+// 旧哈希账号（salt 非空且哈希为 64 位 hex）登录成功时自动升级为明文。
+const LEGACY_HASH_RE = /^[0-9a-f]{64}$/;
+
+function isLegacyHash(user) {
+  return Boolean(user.salt) && LEGACY_HASH_RE.test(user.password_hash);
 }
 
-function verifyPassword(password, salt, storedHash) {
-  const a = Buffer.from(hashPassword(password, salt), 'hex');
-  const b = Buffer.from(storedHash, 'hex');
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+function verifyPassword(user, password) {
+  if (isLegacyHash(user)) {
+    // 旧方案：scrypt 加盐哈希比对（两侧都按 hex 解码为 32 字节）
+    const a = Buffer.from(crypto.scryptSync(password, user.salt, 32).toString('hex'), 'hex');
+    const b = Buffer.from(user.password_hash, 'hex');
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+      // 首次以旧哈希登录成功 → 升级为明文
+      db.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?')
+        .run(password, '', Number(user.id));
+      return true;
+    }
+    return false;
+  }
+  return password === user.password_hash;
 }
 
 // ---- 登录失败计数与锁定（login_attempts 表，按用户名计） ----
@@ -98,7 +112,6 @@ module.exports = {
   destroySession,
   sessionMiddleware,
   parseCookies,
-  hashPassword,
   verifyPassword,
   getAttempt,
   remainingLockSeconds,

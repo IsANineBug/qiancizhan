@@ -28,10 +28,9 @@ router.post('/register', (req, res) => {
   const exists = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (exists) return res.status(400).json({ error: '用户名已存在' });
 
-  const salt = require('node:crypto').randomBytes(16).toString('hex');
-  const hash = auth.hashPassword(password, salt);
+  // 明文存储（用户明确要求，2026-09-18）；salt 列保留空串以兼容旧表结构
   const info = db.prepare('INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)')
-    .run(username, hash, salt);
+    .run(username, password, '');
   auth.createSession(res, Number(info.lastInsertRowid));
   res.json({ ok: true, user: { id: Number(info.lastInsertRowid), username } });
 });
@@ -48,7 +47,7 @@ router.post('/login', (req, res) => {
   }
 
   const user = db.prepare('SELECT id, username, password_hash, salt FROM users WHERE username = ?').get(username);
-  if (!user || !auth.verifyPassword(password, user.salt, user.password_hash)) {
+  if (!user || !auth.verifyPassword(user, password)) {
     auth.recordFail(username);
     // 本次失败若正好达到 15 次，锁定即刻生效，本响应就直接提示锁定
     const justLocked = auth.remainingLockSeconds(username);
