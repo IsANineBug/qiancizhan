@@ -71,4 +71,30 @@ router.post('/books/current', (req, res) => {
   }
 });
 
+// 统计页
+router.get('/stats/page', (req, res) => {
+  try {
+    res.json(scheduler.getStatsPage(req.userId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 设置：读取 / 保存
+router.get('/settings', (req, res) => {
+  try {
+    res.json(scheduler.getSettings(req.userId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/settings', (req, res) => {
+  try {
+    res.json(scheduler.updateSettings(req.userId, req.body ?? {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 module.exports = router;

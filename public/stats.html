@@ -8,6 +8,20 @@
   <style>
     body { padding-bottom: 76px; }
     .wrap { max-width: 480px; margin: 0 auto; padding: 18px 16px; }
+    .wrap h1 { font-size: 22px; margin: 0 0 14px; }
+    .nums { display: flex; gap: 12px; margin-bottom: 14px; }
+    .nums .card { flex: 1; text-align: center; padding: 14px 6px; }
+    .nums b { font-size: 24px; display: block; color: var(--green-dark); }
+    .nums span { font-size: 12.5px; color: var(--muted); }
+    .book-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .book-row:last-child { border-bottom: 0; }
+    .book-row .t { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 6px; }
+    .book-row .t b { color: var(--green-dark); }
+    .track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+    .fill { height: 100%; background: var(--green); }
+    .chart-card h2 { font-size: 16px; margin: 0 0 12px; }
+    .chart-card .axis { font-size: 10.5px; fill: var(--muted); }
+    .chart-card .val { font-size: 10px; fill: var(--green-dark); font-weight: 600; }
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #fff; border-top: 1px solid var(--border); padding: 6px 0 max(6px, env(safe-area-inset-bottom)); }
     .bottom-nav a { flex: 1; text-align: center; text-decoration: none; color: var(--muted); font-size: 12px; }
     .bottom-nav a .icon { display: block; font-size: 21px; margin-bottom: 2px; }
@@ -15,7 +29,61 @@
   </style>
 </head>
 <body>
-  <div class="wrap"><h2>统计</h2><p style="color:var(--muted)">步骤 8 上线</p></div>
-  <script src="/nav.js"></script><script>renderNav('stats');</script>
+  <div class="wrap">
+    <h1>统计</h1>
+    <div class="nums">
+      <div class="card"><b id="stDone">-</b><span>累计斩词</span></div>
+      <div class="card"><b id="stStreak">-</b><span>连续学习天数</span></div>
+    </div>
+
+    <div class="card" style="margin-bottom: 14px;">
+      <h2 style="font-size:16px;margin:0 0 12px">三本词书进度</h2>
+      <div id="bookRows"></div>
+    </div>
+
+    <div class="card chart-card">
+      <h2>最近 7 天学习量</h2>
+      <svg id="chart" width="100%" height="180" viewBox="0 0 400 180" preserveAspectRatio="xMidYMid meet"></svg>
+      <div style="font-size:12px;color:var(--muted);text-align:center">柱高 = 当日新学 + 复习词数</div>
+    </div>
+  </div>
+  <script src="/nav.js"></script>
+  <script>renderNav('stats');</script>
+  <script>
+    (async () => {
+      const r = await fetch('/api/stats/page');
+      if (r.status === 401) { location.href = '/index.html'; return; }
+      const s = await r.json();
+      document.getElementById('stDone').textContent = s.doneTotal;
+      document.getElementById('stStreak').textContent = s.streak;
+
+      document.getElementById('bookRows').innerHTML = s.books.map(b => {
+        const pct = b.total ? Math.round(b.done / b.total * 100) : 0;
+        return `
+        <div class="book-row">
+          <div class="t"><span>${b.title}</span><b>${b.done}/${b.total}（${pct}%）</b></div>
+          <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+        </div>`;
+      }).join('');
+
+      // 最近 7 天柱状图（纯 SVG）
+      const max = Math.max(...s.last7.map(d => d.learned + d.reviewed), 1);
+      const W = 400, H = 180, pad = 24, innerW = W - pad * 2, innerH = H - 44;
+      const bw = innerW / 7 * 0.55, gap = innerW / 7;
+      let svg = '';
+      // 网格基线
+      svg += `<line x1="${pad}" y1="${H - 24}" x2="${W - pad}" y2="${H - 24}" stroke="#e4e8eb"/>`;
+      s.last7.forEach((d, i) => {
+        const v = d.learned + d.reviewed;
+        const h = Math.round(v / max * innerH);
+        const x = pad + gap * i + (gap - bw) / 2;
+        const y = H - 24 - h;
+        svg += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, v > 0 ? 2 : 0)}" rx="3" fill="#2eaf64"></rect>`;
+        if (v > 0) svg += `<text class="val" x="${x + bw / 2}" y="${y - 4}" text-anchor="middle">${v}</text>`;
+        svg += `<text class="axis" x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${d.date.slice(5)}</text>`;
+      });
+      document.getElementById('chart').innerHTML = svg;
+    })();
+  </script>
 </body>
 </html>

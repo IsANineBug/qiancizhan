@@ -8,6 +8,17 @@
   <style>
     body { padding-bottom: 76px; }
     .wrap { max-width: 480px; margin: 0 auto; padding: 18px 16px; }
+    .wrap h1 { font-size: 22px; margin: 0 0 14px; }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .row:last-of-type { border-bottom: 0; }
+    .row .label { font-size: 15px; }
+    .row .label .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .row input[type=number] { width: 84px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; text-align: center; }
+    .seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .seg button { border: 0; background: #fff; padding: 8px 18px; font-size: 14px; cursor: pointer; color: var(--muted); }
+    .seg button.on { background: var(--green); color: #fff; font-weight: 600; }
+    #saveBtn { margin-top: 16px; }
+    #logoutBtn { margin-top: 10px; background: #fff; color: var(--danger); border: 1px solid var(--danger); }
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #fff; border-top: 1px solid var(--border); padding: 6px 0 max(6px, env(safe-area-inset-bottom)); }
     .bottom-nav a { flex: 1; text-align: center; text-decoration: none; color: var(--muted); font-size: 12px; }
     .bottom-nav a .icon { display: block; font-size: 21px; margin-bottom: 2px; }
@@ -15,7 +26,67 @@
   </style>
 </head>
 <body>
-  <div class="wrap"><h2>设置</h2><p style="color:var(--muted)">步骤 8 上线</p></div>
-  <script src="/nav.js"></script><script>renderNav('settings');</script>
+  <div class="wrap">
+    <h1>设置</h1>
+    <div class="card">
+      <div class="row">
+        <div class="label">每日新词数<span class="sub">1–100，默认 20；当天已生成的任务不变，次日生效</span></div>
+        <input type="number" id="dailyLimit" min="1" max="100">
+      </div>
+      <div class="row">
+        <div class="label">发音口音</div>
+        <div class="seg">
+          <button id="accentUs" type="button">美音</button>
+          <button id="accentUk" type="button">英音</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">当前账号</div>
+        <b id="username" style="font-size:15px">—</b>
+      </div>
+      <div class="msg" id="msg"></div>
+      <button class="btn" id="saveBtn">保存</button>
+      <button class="btn" id="logoutBtn">退出登录</button>
+    </div>
+  </div>
+  <script src="/nav.js"></script>
+  <script>renderNav('settings');</script>
+  <script>
+    const $ = id => document.getElementById(id);
+    let accent = 'us';
+
+    (async () => {
+      const r = await fetch('/api/settings');
+      if (r.status === 401) { location.href = '/index.html'; return; }
+      const s = await r.json();
+      $('username').textContent = s.username;
+      $('dailyLimit').value = s.dailyNewLimit;
+      accent = s.accent;
+      paintAccent();
+    })();
+
+    function paintAccent() {
+      $('accentUs').classList.toggle('on', accent === 'us');
+      $('accentUk').classList.toggle('on', accent === 'uk');
+    }
+    $('accentUs').onclick = () => { accent = 'us'; paintAccent(); };
+    $('accentUk').onclick = () => { accent = 'uk'; paintAccent(); };
+
+    $('saveBtn').onclick = async () => {
+      const msg = $('msg'); msg.className = 'msg'; msg.textContent = '';
+      const r = await fetch('/api/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dailyNewLimit: Number($('dailyLimit').value), accent }),
+      });
+      const data = await r.json();
+      if (!r.ok) { msg.className = 'msg error'; msg.textContent = data.error; return; }
+      msg.className = 'msg ok'; msg.textContent = '已保存 ✅';
+    };
+
+    $('logoutBtn').onclick = async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      location.href = '/index.html';
+    };
+  </script>
 </body>
 </html>

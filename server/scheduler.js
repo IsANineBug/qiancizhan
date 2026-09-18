@@ -191,4 +191,47 @@ function setCurrentBook(userId, key) {
   return { ok: true, currentBookKey: String(key) };
 }
 
-module.exports = { getTodayTasks, submitResult, getHomeStats, getBookProgress, setCurrentBook, todayStr, addDaysStr, STAGE_INTERVALS, currentBookId };
+// ---- 统计页（F8）：累计斩词、连续天数、三书进度、最近 7 天学习量 ----
+function getStatsPage(userId) {
+  const books = getBookProgress(userId);
+  const doneTotal = books.reduce((a, b) => a + b.done, 0);
+  // 连续学习天数（斩词或复习都算学习行为）
+  const active = new Set(
+    db.prepare('SELECT date FROM daily_log WHERE user_id = ?').all(Number(userId)).map(r => r.date)
+  );
+  const today = todayStr();
+  let streak = 0;
+  let cursor = active.has(today) ? today : addDaysStr(today, -1);
+  while (active.has(cursor)) { streak++; cursor = addDaysStr(cursor, -1); }
+  // 最近 7 天（含今天，最旧在前）：每日 新学+复习
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = addDaysStr(today, -i);
+    const row = db.prepare(
+      'SELECT learned, reviewed FROM daily_log WHERE user_id = ? AND date = ?'
+    ).get(Number(userId), d);
+    days.push({ date: d, learned: row ? Number(row.learned) : 0, reviewed: row ? Number(row.reviewed) : 0 });
+  }
+  return { doneTotal, streak, books, last7: days };
+}
+
+// ---- 设置（F9） ----
+function getSettings(userId) {
+  const u = db.prepare('SELECT username, daily_new_limit, accent FROM users WHERE id = ?').get(Number(userId));
+  return { username: u.username, dailyNewLimit: Number(u.daily_new_limit), accent: u.accent };
+}
+
+function updateSettings(userId, { dailyNewLimit, accent }) {
+  if (dailyNewLimit !== undefined) {
+    const n = Number(dailyNewLimit);
+    if (!Number.isInteger(n) || n < 1 || n > 100) throw new Error('每日新词数需为 1–100 的整数');
+    db.prepare('UPDATE users SET daily_new_limit = ? WHERE id = ?').run(n, Number(userId));
+  }
+  if (accent !== undefined) {
+    if (accent !== 'us' && accent !== 'uk') throw new Error('口音只支持 us / uk');
+    db.prepare('UPDATE users SET accent = ? WHERE id = ?').run(accent, Number(userId));
+  }
+  return getSettings(userId);
+}
+
+module.exports = { getTodayTasks, submitResult, getHomeStats, getBookProgress, setCurrentBook, getStatsPage, getSettings, updateSettings, todayStr, addDaysStr, STAGE_INTERVALS, currentBookId };
