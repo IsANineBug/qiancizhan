@@ -248,13 +248,17 @@
         : '（本词暂无例句）';
       $('faceFront').classList.remove('hidden');
       $('faceBack').classList.add('hidden');
+      $('flipBtn').textContent = '翻面';
       $('nextBtn').textContent = session.newQueue.length === 1 ? '开始检验' : '下一张';
       $('phase').textContent = `新词 ${session.totalNew - session.newQueue.length + 1}/${session.totalNew}`;
     }
 
+    // 来回翻动：正面 ⇄ 背面自由切换
     function flip() {
-      $('faceFront').classList.add('hidden');
-      $('faceBack').classList.remove('hidden');
+      const showingBack = !$('faceBack').classList.contains('hidden');
+      $('faceFront').classList.toggle('hidden', !showingBack);
+      $('faceBack').classList.toggle('hidden', showingBack);
+      $('flipBtn').textContent = showingBack ? '翻面' : '翻回正面';
     }
     $('card').onclick = flip;
     $('flipBtn').onclick = flip;
