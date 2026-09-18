@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>千词斩 · 学习</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { padding-bottom: 24px; }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .topbar .phase { font-weight: 700; color: var(--green-dark); }
+    .progress-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 18px; }
+    .progress-fill { height: 100%; background: var(--green); border-radius: 4px; transition: width .3s; }
+    /* 翻卡 */
+    .flashcard { position: relative; min-height: 300px; cursor: pointer; }
+    .flashcard .face { min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 24px; }
+    .flashcard .word { font-size: 40px; font-weight: 700; margin: 8px 0; }
+    .flashcard .phone { color: var(--muted); font-size: 15px; }
+    .flashcard .trans { font-size: 19px; line-height: 1.7; }
+    .flashcard .sent { margin-top: 16px; font-size: 14px; color: var(--muted); line-height: 1.6; }
+    .flashcard .hint { margin-top: 22px; font-size: 13px; color: var(--muted); }
+    .speaker { border: 0; background: var(--green-light); color: var(--green-dark); width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; }
+    /* 四选一 */
+    .quiz-word { text-align: center; margin: 26px 0 24px; }
+    .quiz-word .word { font-size: 38px; font-weight: 700; }
+    .quiz-word .phone { color: var(--muted); font-size: 15px; margin-top: 4px; }
+    .options { display: grid; gap: 12px; }
+    .option { padding: 15px; border: 1px solid var(--border); border-radius: 10px; background: #fff; font-size: 16px; text-align: center; cursor: pointer; }
+    .option.correct { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
+    .option.wrong { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .option:disabled { cursor: default; }
+    /* 总结 */
+    .done-box { text-align: center; padding: 30px 0; }
+    .done-box .big { font-size: 30px; font-weight: 700; color: var(--green-dark); margin: 10px 0 20px; }
+    .done-box .nums { display: flex; justify-content: space-around; margin-bottom: 26px; }
+    .done-box .num b { font-size: 26px; display: block; }
+    .done-box .num span { font-size: 13px; color: var(--muted); }
+    .hidden { display: none !important; }
+    .trans-line { margin: 3px 0; }
+    .pos { color: var(--green-dark); font-weight: 600; margin-right: 6px; }
+    #toast { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); background: rgba(0,0,0,.72); color: #fff; padding: 9px 18px; border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <span class="phase" id="phase">加载中…</span>
+      <a href="/home.html" style="font-size:14px;color:var(--muted)">✕ 退出学习</a>
+    </div>
+    <div class="progress-track" id="track"><div class="progress-fill" id="fill" style="width:0%"></div></div>
+
+    <!-- 复习环节：四选一 -->
+    <section id="reviewSec" class="hidden">
+      <div class="quiz-word">
+        <div class="word" id="rvWord">—</div>
+        <div class="phone" id="rvPhone"></div>
+        <button class="speaker" id="rvSpeak" style="margin-top:10px">🔊</button>
+      </div>
+      <div class="options" id="rvOptions"></div>
+    </section>
+
+    <!-- 新词环节：翻卡 -->
+    <section id="newSec" class="hidden">
+      <div class="card flashcard" id="card">
+        <div class="face" id="faceFront">
+          <div class="word" id="nwWord">—</div>
+          <div class="phone" id="nwPhone"></div>
+          <button class="speaker" id="nwSpeak">🔊</button>
+          <div class="hint">点卡片看释义</div>
+        </div>
+        <div class="face hidden" id="faceBack">
+          <div class="word" id="bkWord" style="font-size:30px">—</div>
+          <div class="trans" id="bkTrans"></div>
+          <div class="sent" id="bkSent"></div>
+          <div class="hint">记住了就点「下一张」</div>
+        </div>
+      </div>
+      <button class="btn plain" id="flipBtn" style="margin-top:14px">翻面</button>
+      <button class="btn" id="nextBtn" style="margin-top:10px">下一张</button>
+    </section>
+
+    <!-- 新词检验：四选一（同复习样式） -->
+    <section id="checkSec" class="hidden">
+      <div class="quiz-word">
+        <div class="word" id="ckWord">—</div>
+        <div class="phone" id="ckPhone"></div>
+        <button class="speaker" id="ckSpeak" style="margin-top:10px">🔊</button>
+      </div>
+      <div class="options" id="ckOptions"></div>
+    </section>
+
+    <!-- 总结页 -->
+    <section id="doneSec" class="hidden">
+      <div class="card done-box">
+        <div style="font-size:40px">🎉</div>
+        <div class="big">本次完成</div>
+        <div class="nums">
+          <div class="num"><b id="sumKilled">0</b><span>斩掉词数</span></div>
+          <div class="num"><b id="sumNew">0</b><span>新学词数</span></div>
+          <div class="num"><b id="sumWrong">0</b><span>答错次数</span></div>
+        </div>
+        <a class="btn" href="/" style="text-decoration:none">回到首页</a>
+      </div>
+    </section>
+  </div>
+  <div id="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const SECS = { review: $('reviewSec'), new: $('newSec'), check: $('checkSec'), done: $('doneSec') };
+    function show(name) { for (const k in SECS) SECS[k].classList.toggle('hidden', k !== name); }
+    function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1200); }
+
+    let session = null;   // { reviewQueue, newQueue, checkQueue, stats }
+    let cur = null;       // 当前词对象
+
+    // ---- 启动：拉今日任务，组会话队列 ----
+    (async () => {
+      const r = await fetch('/api/tasks/today');
+      if (r.status === 401) { location.href = '/index.html'; return; }
+      const data = await r.json();
+      session = {
+        reviewQueue: data.review.map(w => ({ ...w, kind: 'review' })),
+        newQueue: data.newWords.map(w => ({ ...w, kind: 'new' })),
+        checkQueue: [],       // 翻完卡待检验的新词
+        stats: { killed: 0, learned: 0, wrong: 0 },
+        totalNew: data.newWords.length,
+      };
+      session.totalInitial = session.reviewQueue.length + session.totalNew;
+      updateProgress();
+      if (session.reviewQueue.length) { show('review'); nextReview(); }
+      else if (session.newQueue.length) { show('new'); startNewWord(); }
+      else finish();
+    })();
+
+    function updateProgress() {
+      const total = session.reviewQueue.length + session.newQueue.length + session.checkQueue.length;
+      // 进度以初始任务量为分母，剩余量为分子
+      const remain = session.reviewQueue.length + session.checkQueue.length + session.newQueue.length;
+      const pct = session.totalInitial === undefined
+        ? 0
+        : Math.round((session.totalInitial - remain) / session.totalInitial * 100);
+      $('fill').style.width = pct + '%';
+    }
+
+    // ---- 复习环节（四选一） ----
+    function buildOptions(target, queueKind) {
+      // 干扰项：同一词书其他词的中文释义
+      const all = [...session.reviewQueue, ...session.newQueue, ...session.checkQueue];
+      const pool = all.filter(w => w.wordId !== target.wordId);
+      const distract = [];
+      const seenText = new Set(target.trans.map(t => t.cn));
+      for (const w of pool) {
+        const texts = w.trans.map(t => t.cn).filter(c => !seenText.has(c));
+        if (texts.length) { distract.push(texts[0]); seenText.add(texts[0]); }
+        if (distract.length >= 3) break;
+      }
+      const opts = [...distract.slice(0, 3), target.trans.map(t => `${t.pos ? t.pos + '. ' : ''}${t.cn}`).join('；')]
+        .sort(() => Math.random() - 0.5);
+      const box = $(queueKind === 'review' ? 'rvOptions' : 'ckOptions');
+      box.innerHTML = '';
+      opts.forEach(text => {
+        const b = document.createElement('button');
+        b.className = 'option'; b.textContent = text;
+        b.onclick = () => pick(b, text === target.answerText, target, queueKind);
+        box.appendChild(b);
+      });
+      return opts;
+    }
+
+    function answerTextOf(w) { return w.trans.map(t => `${t.pos ? t.pos + '. ' : ''}${t.cn}`).join('；'); }
+
+    function nextReview() {
+      cur = session.reviewQueue[0];
+      if (!cur) { toNewPhase(); return; }
+      cur.answerText = answerTextOf(cur);
+      $('rvWord').textContent = cur.word;
+      $('rvPhone').textContent = [cur.usphone && '美 ' + cur.usphone, cur.ukphone && '英 ' + cur.ukphone].filter(Boolean).join('  |  ');
+      buildOptions(cur, 'review');
+    }
+
+    function pick(btn, isCorrect, target, queueKind) {
+      const box = $(queueKind === 'review' ? 'rvOptions' : 'ckOptions');
+      [...box.children].forEach(b => b.disabled = true);
+      if (isCorrect) {
+        btn.classList.add('correct');
+        commit(queueKind === 'review' ? 'review' : 'new-check', target, true);
+        setTimeout(() => advanceAfterCorrect(queueKind), 600);
+      } else {
+        btn.classList.add('wrong');
+        session.stats.wrong++;
+        // 正确项标绿
+        [...box.children].find(b => b.textContent === target.answerText).classList.add('correct');
+        commit(queueKind === 'review' ? 'review' : 'new-check', target, false);
+        // 排到队尾重新出现
+        if (queueKind === 'review') { session.reviewQueue.push(session.reviewQueue.shift()); }
+        else { session.checkQueue.push(session.checkQueue.shift()); }
+        setTimeout(() => {
+          [...box.children].forEach(b => { b.disabled = false; b.classList.remove('wrong', 'correct'); });
+          queueKind === 'review' ? nextReview() : nextCheck();
+        }, 900);
+      }
+      updateProgress();
+    }
+
+    // 提交结果到服务端（不阻塞 UI 主流程，失败记 toast）
+    async function commit(kind, target, correct) {
+      try {
+        const payload = kind === 'new-check'
+          ? { kind: 'new', wordId: target.wordId, correct }
+          : { kind: 'review', wordId: target.wordId, correct };
+        const r = await fetch('/api/tasks/result', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        if (kind === 'new-check' && correct) { session.stats.learned++; if (data.done) session.stats.killed++; }
+        if (kind === 'review' && data.done) { session.stats.killed++; }
+      } catch (e) { toast('提交失败：' + e.message); }
+    }
+
+    function advanceAfterCorrect(queueKind) {
+      if (queueKind === 'review') { session.reviewQueue.shift(); updateProgress(); session.reviewQueue.length ? nextReview() : toNewPhase(); }
+      else { session.checkQueue.shift(); updateProgress(); session.checkQueue.length ? nextCheck() : finishIfAllDone(); }
+    }
+
+    function toNewPhase() {
+      if (session.newQueue.length) { show('new'); startNewWord(); }
+      else finishIfAllDone();
+    }
+
+    // ---- 新词环节：翻卡 ----
+    function startNewWord() {
+      cur = session.newQueue[0];
+      $('nwWord').textContent = cur.word;
+      $('bkWord').textContent = cur.word;
+      $('nwPhone').textContent = $('bkPhone') ? '' : [cur.usphone && '美 ' + cur.usphone, cur.ukphone && '英 ' + cur.ukphone].filter(Boolean).join('  |  ');
+      $('bkTrans').innerHTML = cur.trans.map(t => `<div class="trans-line"><span class="pos">${t.pos}</span>${t.cn}</div>`).join('');
+      $('bkSent').innerHTML = cur.sentences && cur.sentences.length
+        ? cur.sentences.map(s => `<div>${s.en}<br>${s.cn}</div>`).join('<hr style="border:0;border-top:1px solid var(--border)">')
+        : '（本词暂无例句）';
+      $('faceFront').classList.remove('hidden');
+      $('faceBack').classList.add('hidden');
+      $('nextBtn').textContent = session.newQueue.length === 1 ? '开始检验' : '下一张';
+      $('phase').textContent = `新词 ${session.totalNew - session.newQueue.length + 1}/${session.totalNew}`;
+    }
+
+    function flip() {
+      $('faceFront').classList.add('hidden');
+      $('faceBack').classList.remove('hidden');
+    }
+    $('card').onclick = flip;
+    $('flipBtn').onclick = flip;
+
+    $('nextBtn').onclick = () => {
+      // 未翻面直接点下一张也视为看完，强制翻面展示过即可
+      const w = session.newQueue.shift();
+      session.checkQueue.push(w);
+      updateProgress();
+      if (session.newQueue.length) startNewWord();
+      else { show('check'); nextCheck(); }
+    };
+
+    // ---- 新词检验 ----
+    function nextCheck() {
+      cur = session.checkQueue[0];
+      if (!cur) { finishIfAllDone(); return; }
+      cur.answerText = answerTextOf(cur);
+      $('ckWord').textContent = cur.word;
+      $('ckPhone').textContent = [cur.usphone && '美 ' + cur.usphone, cur.ukphone && '英 ' + cur.ukphone].filter(Boolean).join('  |  ');
+      buildOptions(cur, 'check');
+    }
+
+    function finishIfAllDone() {
+      if (!session.reviewQueue.length && !session.newQueue.length && !session.checkQueue.length) finish();
+    }
+
+    // ---- 总结 ----
+    function finish() {
+      show('done');
+      $('sumKilled').textContent = session.stats.killed;
+      $('sumNew').textContent = session.stats.learned;
+      $('sumWrong').textContent = session.stats.wrong;
+      $('fill').style.width = '100%';
+    }
+  </script>
+</body>
+</html>
