@@ -1,6 +1,6 @@
 {
   "name": "qiancizhan",
-  "version": "1.0.0",
+  "version": "0.1.0-test",
   "description": "千词斩 — 本地部署的背单词网页应用（艾宾浩斯间隔重复）",
   "main": "server/index.js",
   "scripts": {

@@ -3,3 +3,4 @@ server/data.db*
 *.zip
 data/raw/
 .DS_Store
+.zcode/
