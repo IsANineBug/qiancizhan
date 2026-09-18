@@ -97,6 +97,7 @@ Zdemo1/
 
 ## 常见问题
 
+- **学习顺序**：设置页可选三种模式——默认顺序（词书内置序）、按考查频率（基于 COCA 语料库词频，高频词先学）、完全随机（每天随机一批，隔天换）。只影响未学新词的出场顺序，复习节奏不受影响。
 - **忘记密码**：密码为明文存储，直接查看数据库即可（`sqlite3 server/data.db "SELECT username, password_hash FROM users"`，password_hash 字段即明文密码）；或联系开发者清库重建。
 - **数据备份**：备份 `server/data.db` 单文件即可。
 - **词书扩充**：`scripts/prepare-dicts.mjs` 可重跑用于扩充其他词书（v1 无界面功能）。
