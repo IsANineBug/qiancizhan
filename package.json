@@ -1,0 +1,15 @@
+{
+  "name": "qiancizhan",
+  "version": "1.0.0",
+  "description": "千词斩 — 本地部署的背单词网页应用（艾宾浩斯间隔重复）",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "prepare-dicts": "node scripts/prepare-dicts.mjs"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
