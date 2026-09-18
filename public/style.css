@@ -1,0 +1,50 @@
+/* 千词斩 · 共享样式（简洁明亮：白底卡片 + 绿色主题 + 大按钮） */
+:root {
+  --green: #2eaf64;
+  --green-dark: #249154;
+  --green-light: #e6f5ec;
+  --danger: #d9483b;
+  --text: #2b2f33;
+  --muted: #8a9299;
+  --border: #e4e8eb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f4f6f7;
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.05);
+}
+.btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn:active { background: var(--green-dark); }
+.btn.plain { background: var(--green-light); color: var(--green-dark); }
+.input {
+  width: 100%;
+  padding: 13px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.input:focus { outline: 2px solid var(--green-light); border-color: var(--green); }
+.msg { min-height: 20px; font-size: 14px; margin: 6px 0 10px; }
+.msg.error { color: var(--danger); }
+.msg.ok { color: var(--green-dark); }

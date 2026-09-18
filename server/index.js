@@ -1,11 +1,14 @@
-// 千词斩 · 服务入口（步骤 1：骨架）
+// 千词斩 · 服务入口（步骤 2）
 // npm start 启动，默认 3000 端口；监听 0.0.0.0 覆盖本机与局域网访问。
-// 本步仅骨架：占位首页 + 词书入库；注册登录、学习接口在后续步骤实现。
+// 已接入：注册/登录/退出（F1）+ 登录失败限速；学习等功能接口在后续步骤实现。
 
 const express = require('express');
 const { createServer } = require('node:http');
 const os = require('node:os');
+const path = require('node:path');
 const { seedBooks, DB_PATH } = require('./db');
+const { sessionMiddleware } = require('./auth');
+const authRoutes = require('./routes-auth');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
@@ -14,10 +17,14 @@ seedBooks();
 
 const app = express();
 app.use(express.json());
+app.use(sessionMiddleware);
 
-// 占位首页（后续步骤替换为登录页/首页）
+app.use('/api', authRoutes);
+
+// 静态前端（public/）；根路径按登录态分流：未登录 → 登录页，已登录 → 占位首页
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/', (req, res) => {
-  res.type('html').send('<!doctype html><meta charset="utf-8"><title>千词斩</title><h1>千词斩 · 服务已启动</h1>');
+  res.redirect(req.userId ? '/home.html' : '/index.html');
 });
 
 const server = createServer(app);

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>千词斩 · 登录</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .wrap { max-width: 360px; margin: 12vh auto 0; padding: 0 16px; }
+    .logo { text-align: center; font-size: 30px; font-weight: 700; color: var(--green-dark); margin-bottom: 18px; }
+    .switch { text-align: center; margin-top: 14px; font-size: 14px; color: var(--muted); }
+    .switch a { color: var(--green-dark); cursor: pointer; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">千词斩</div>
+    <div class="card">
+      <!-- 登录表单 -->
+      <form id="loginForm">
+        <h2 style="margin:0 0 16px">登录</h2>
+        <input class="input" id="loginUser" placeholder="用户名" autocomplete="username">
+        <input class="input" id="loginPass" type="password" placeholder="密码" autocomplete="current-password">
+        <div class="msg" id="loginMsg"></div>
+        <button class="btn" type="submit">登 录</button>
+      </form>
+      <!-- 注册表单 -->
+      <form id="regForm" class="hidden">
+        <h2 style="margin:0 0 16px">注册</h2>
+        <input class="input" id="regUser" placeholder="用户名（2–20 位）" autocomplete="username">
+        <input class="input" id="regPass" type="password" placeholder="密码（至少 6 位）" autocomplete="new-password">
+        <input class="input" id="regPass2" type="password" placeholder="再输一遍密码" autocomplete="new-password">
+        <div class="msg" id="regMsg"></div>
+        <button class="btn" type="submit">注 册</button>
+      </form>
+      <div class="switch">还没有账号？<a id="switchLink">去注册</a></div>
+    </div>
+  </div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const switchLink = $('switchLink');
+    let mode = 'login';
+    switchLink.onclick = () => {
+      mode = mode === 'login' ? 'reg' : 'login';
+      $('loginForm').classList.toggle('hidden', mode === 'reg');
+      $('regForm').classList.toggle('hidden', mode === 'login');
+      switchLink.textContent = mode === 'login' ? '去注册' : '去登录';
+      switchLink.previousSibling.textContent = mode === 'login' ? '还没有账号？' : '已有账号？';
+    };
+
+    async function post(url, body) {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { status: r.status, data: await r.json() };
+    }
+
+    $('regForm').onsubmit = async e => {
+      e.preventDefault();
+      const msg = $('regMsg');
+      msg.className = 'msg error'; msg.textContent = '';
+      if ($('regPass').value !== $('regPass2').value) { msg.textContent = '两次输入的密码不一致'; return; }
+      const { status, data } = await post('/api/register', { username: $('regUser').value.trim(), password: $('regPass').value });
+      if (status !== 200) { msg.textContent = data.error; return; }
+      location.href = '/';
+    };
+
+    $('loginForm').onsubmit = async e => {
+      e.preventDefault();
+      const msg = $('loginMsg');
+      msg.className = 'msg error'; msg.textContent = '';
+      const { status, data } = await post('/api/login', { username: $('loginUser').value.trim(), password: $('loginPass').value });
+      if (status !== 200) { msg.textContent = data.error; return; }
+      location.href = '/';
+    };
+  </script>
+</body>
+</html>

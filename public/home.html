@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>千词斩 · 首页</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .wrap { max-width: 480px; margin: 10vh auto 0; padding: 0 16px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1 style="color:var(--green-dark)">千词斩</h1>
+      <p id="hello" style="color:var(--muted)">登录成功 · 占位首页</p>
+      <p style="font-size:14px;color:var(--muted)">学习功能将在后续步骤开放</p>
+      <button class="btn" id="logoutBtn">退出登录</button>
+    </div>
+  </div>
+  <script>
+    fetch('/api/me').then(r => r.json()).then(({ user }) => {
+      if (!user) { location.href = '/index.html'; return; }
+      document.getElementById('hello').textContent = `登录成功：${user.username} · 占位首页`;
+    });
+    document.getElementById('logoutBtn').onclick = async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      location.href = '/index.html';
+    };
+  </script>
+</body>
+</html>
